@@ -242,44 +242,51 @@ async function getMedicationDetails(medicationName) {
         return '';
     }
     
-    try {
-        const url = `https://api.fda.gov/drug/label.json?api_key=${OPENFDA_API_KEY}&search=openfda.brand_name:"${encodeURIComponent(medicationName)}"&limit=1`;
-        const response = await fetch(url);
+    const url = `https://api.fda.gov/drug/label.json?api_key=${OPENFDA_API_KEY}&search=openfda.brand_name:"${encodeURIComponent(medicationName)}"&limit=1`;
+    const maxRetries = 3;
+    let lastError = null;
 
-        // Handle non-successful responses
-        if (!response.ok) {
-            if (response.status === 404) {
-                console.warn(`No drug information found in openFDA for "${medicationName}"`);
-            } else {
-                // Log other HTTP errors
-                console.error(`Error fetching drug data from openFDA: ${response.status} ${response.statusText}`);
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            const response = await fetch(url);
+
+            // Handle non-successful responses
+            if (!response.ok) {
+                if (response.status === 404) {
+                    console.warn(`No drug information found in openFDA for "${medicationName}"`);
+                    return ''; // 404 is a definitive "not found", no need to retry
+                }
+                // For other server errors, throw an error to trigger a retry
+                throw new Error(`Server responded with status ${response.status}`);
             }
-            return ''; // Return empty for any HTTP error
+
+            const data = await response.json();
+
+            // Process successful response
+            if (data.results && data.results.length > 0) {
+                const drug = data.results[0];
+                let info = '';
+                if (drug.indications_and_usage && drug.indications_and_usage[0]) {
+                    info += `Indications: ${drug.indications_and_usage[0]}. `;
+                }
+                if (drug.warnings && drug.warnings[0]) {
+                    info += `Warnings: ${drug.warnings[0]}`;
+                }
+                return info.trim();
+            }
+            return ''; // Return empty if no results are found
+        } catch (error) {
+            lastError = error;
+            console.error(`FDA API Fetch Attempt ${i + 1} failed:`, error);
+            if (i < maxRetries - 1) {
+                await new Promise(res => setTimeout(res, 1000)); // Wait 1 second before retrying
+            }
         }
-
-        const data = await response.json();
-
-        // Process successful response
-        if (data.results && data.results.length > 0) {
-            const drug = data.results[0];
-            let info = '';
-            if (drug.indications_and_usage && drug.indications_and_usage[0]) {
-                info += `Indications: ${drug.indications_and_usage[0]}. `;
-            }
-            if (drug.warnings && drug.warnings[0]) {
-                info += `Warnings: ${drug.warnings[0]}`;
-            }
-            return info.trim();
-        }
-        return ''; // Return empty if no results are found
-    } catch (error) {
-        // This block catches network errors (like 'Failed to fetch')
-        // This console error is expected during network failures and indicates the error handling is working correctly.
-        console.error("FDA API Fetch Error:", error);
-        // Inform the user that this specific part of the functionality failed but the app can continue.
-        showToast('FDA Connection Failed', 'Could not retrieve data from the FDA database. The report will be generated without it.', 'warning');
-        return ''; // Return empty string to allow the rest of the app to function
     }
+    
+    // If all retries fail, show a toast and return empty
+    showToast('FDA Connection Failed', 'Could not retrieve data from the FDA database. The report will be generated without it.', 'warning');
+    return '';
 }
 
 async function getConsolidatedAiAnalysis(base64ImageData, fdaInfoEnglish, userProfile, languageCode) {
@@ -506,14 +513,19 @@ function displayResults(analysisResult) {
         ul.className = 'list-disc list-inside space-y-2 text-lg leading-relaxed';
         quickFacts.forEach(fact => {
             const li = document.createElement('li');
-            li.textContent = fact;
+            // FIX: Handle cases where 'fact' might be an object instead of a string.
+            if (typeof fact === 'object' && fact !== null) {
+                li.textContent = Object.values(fact)[0] || '';
+            } else {
+                li.textContent = fact;
+            }
             ul.appendChild(li);
         });
         quickFactsContainer.appendChild(ul);
     }
     
     // Full summary tab
-    const medicationDisplayName = brandName && genericName && brandName !== genericName ? `${brandName} (${genericName})` : brandName || genericName || 'N/A';
+    const medicationDisplayName = brandName && genericName && brandName.toLowerCase() !== genericName.toLowerCase() ? `${brandName} (${genericName})` : brandName || genericName || 'N/A';
     document.getElementById('full-medication').textContent = medicationDisplayName;
     document.getElementById('full-strength').textContent = strength || 'N/A';
     document.getElementById('full-use').textContent = primaryUse || 'N/A';
@@ -712,15 +724,26 @@ function shareReportEmail() {
     }
     const { brandName, genericName, strength, quickFacts, personalizedAlert } = latestAnalysisResult;
     const subject = `Medication Report for ${brandName || genericName}`;
+    
+    // FIX: Properly format the quickFacts array to handle objects instead of strings.
+    const formattedQuickFacts = (quickFacts || []).map(fact => {
+        if (typeof fact === 'object' && fact !== null) {
+            return Object.values(fact)[0] || '';
+        }
+        return fact;
+    }).join('\n- ');
+
     let body = `Hello,\n\nHere is my medication report generated by Elevate MediLens:\n\n`;
     body += `Medication: ${brandName || genericName} (${strength || 'N/A'})\n\n`;
-     if (brandName && genericName) {
+    
+    // FIX: Avoid redundant "Active Ingredient" if brand and generic names are the same.
+     if (brandName && genericName && brandName.toLowerCase() !== genericName.toLowerCase()) {
         body += `(Active Ingredient: ${genericName})\n\n`;
     }
     if (personalizedAlert) {
         body += `IMPORTANT ALERT:\n${personalizedAlert}\n\n`;
     }
-    body += `Quick Facts:\n- ${(quickFacts || []).join('\n- ')}\n\n`;
+    body += `Quick Facts:\n- ${formattedQuickFacts}\n\n`;
     body += `Please review this information.\n\nThank you.`;
 
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
