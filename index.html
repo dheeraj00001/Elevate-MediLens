@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elevate MediLens - AI-Powered Medication Scanner</title>
+    <meta name="description" content="Advanced AI-powered medication label scanner with OCR, FDA lookups, speech synthesis, and personalized health alerts">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Roboto:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- External CSS -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- pdfmake for PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+</head>
+
+<body>
+    <!-- Hero Header -->
+    <header class="hero-header">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-title-container">
+                    <img src="https://i.ibb.co/G47sfjxB/Elevate-Medilens-Logo-removebg-preview.png" alt="Elevate MediLens Logo" class="hero-icon">
+                    <h1 class="hero-title font-heading">Elevate MediLens</h1>
+                </div>
+                <p class="hero-subtitle font-body">AI-Powered Medication Label Assistant</p>
+                <p class="hero-description">Advanced OCR, FDA lookups, speech synthesis, and personalized health alerts</p>
+                
+                <!-- Language Selector -->
+                <div class="language-selector-container">
+                    <label for="language-select"><i class="fas fa-globe"></i> Language:</label>
+                    <select id="language-select" class="font-body"></select>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container py-8">
+        <!-- Mode Selection -->
+        <div class="card animate-fade-in">
+            <div class="card-header">
+                <h2 class="card-title font-heading text-center">Choose Scan Method</h2>
+            </div>
+            <div class="card-content text-center">
+                <div class="flex gap-4 justify-center">
+                    <button id="upload-mode-btn" class="btn btn-primary">
+                        <i class="fas fa-upload"></i>
+                        Upload Image
+                    </button>
+                    <button id="camera-mode-btn" class="btn btn-outline">
+                        <i class="fas fa-camera"></i>
+                        Live Scan
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div id="upload-section" class="card animate-slide-in-right">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-cloud-upload-alt text-primary"></i>
+                    Upload Medication Label
+                </h3>
+            </div>
+            <div class="card-content">
+                <div class="upload-area" id="drop-area">
+                    <input type="file" id="imageUpload" accept="image/*" style="display: none;">
+                    <div class="upload-content">
+                        <i class="fas fa-file-image upload-icon"></i>
+                        <p class="text-lg font-medium mb-2">Drop your image here or click to browse</p>
+                        <p class="text-muted">Supports JPG, PNG, and other image formats</p>
+                    </div>
+                </div>
+                <img id="image-preview" class="hidden" style="max-width: 100%; margin-top: 1rem; border-radius: var(--radius);">
+            </div>
+        </div>
+
+        <!-- Camera Section -->
+        <div id="camera-section" class="card animate-slide-in-right hidden">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-video text-primary"></i>
+                    Live Camera Scan
+                </h3>
+            </div>
+            <div class="card-content">
+                <div class="video-container">
+                    <video id="live-video" class="video-element" autoplay playsinline></video>
+                    <canvas id="overlay-canvas" style="display: none;"></canvas>
+                </div>
+                <div class="flex gap-4 justify-center">
+                    <button id="scan-label-btn" class="btn btn-gradient">
+                        <i class="fas fa-camera-retro"></i>
+                        Capture & Scan
+                    </button>
+                    <button id="retake-btn" class="btn btn-outline">
+                        <i class="fas fa-redo"></i>
+                        Retake
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Processing Progress -->
+        <div id="processing-section" class="card animate-scale-in hidden">
+            <div class="card-content py-6">
+                <div class="text-center space-y-4">
+                    <i class="fas fa-brain text-3xl text-primary" style="animation: pulse 1s infinite;"></i>
+                    <h3 class="text-lg font-medium">AI Analysis in Progress...</h3>
+                    <div class="progress-container" style="max-width: 24rem; margin: 0 auto;">
+                        <div id="progress-bar" class="progress-bar" style="width: 0%;"></div>
+                    </div>
+                    <p id="progress-text" class="text-muted">Processing image...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results-section" class="hidden animate-fade-up">
+            <div class="card">
+                <div class="card-header">
+                    <div class="flex items-center justify-between">
+                        <h3 class="card-title">
+                            <i class="fas fa-pills text-primary"></i>
+                            Scan Results
+                        </h3>
+                        <div class="flex gap-2">
+                            <button id="read-aloud-btn" class="btn btn-outline">
+                                <i class="fas fa-play"></i>
+                                Listen
+                            </button>
+                            <button id="volume-btn" class="btn btn-outline">
+                                <i class="fas fa-volume-up"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="tabs-list">
+                        <button class="tab-trigger active" data-tab="brief">
+                            <i class="fas fa-lightning"></i>
+                            Quick Facts
+                        </button>
+                        <button class="tab-trigger" data-tab="full">
+                            <i class="fas fa-list"></i>
+                            Full Summary
+                        </button>
+                        <!-- New Tab for Educational Videos -->
+                        <button class="tab-trigger" data-tab="videos">
+                            <i class="fab fa-youtube"></i>
+                            Educational Videos
+                        </button>
+                    </div>
+                    
+                    <div id="brief-content" class="tab-content active space-y-4">
+                        <div id="quick-facts-container" class="bg-primary p-6 rounded-lg">
+                            <!-- Quick facts list will be populated here -->
+                        </div>
+                    </div>
+                    
+                    <div id="full-content" class="tab-content space-y-6">
+                        <div class="bg-surface border rounded-lg p-6 space-y-4">
+                            <div class="grid grid-cols-1 gap-6" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="label">Medication Name</label>
+                                        <p id="full-medication" class="text-lg font-medium text-primary"></p>
+                                    </div>
+                                    <div>
+                                        <label class="label">Strength</label>
+                                        <p id="full-strength" class="text-base"></p>
+                                    </div>
+                                    <div>
+                                        <label class="label">Primary Use</label>
+                                        <p id="full-use" class="text-base"></p>
+                                    </div>
+                                </div>
+                                
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="label">Instructions</label>
+                                        <p id="full-instructions" class="text-base"></p>
+                                    </div>
+                                    <div id="warnings-section" class="hidden">
+                                        <label class="label text-alert">Warnings</label>
+                                        <p id="full-warnings" class="text-base text-alert"></p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="fda-section" class="border-t pt-4 hidden">
+                                <label class="label">FDA Information</label>
+                                <p id="fda-info" class="text-base mt-1"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- New Content Area for Videos -->
+                    <div id="videos-content" class="tab-content">
+                        <h3 class="text-lg font-medium mb-4">Relevant Educational Videos</h3>
+                        <div id="youtube-videos" class="youtube-video-container">
+                            <!-- YouTube video cards will be dynamically inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Personalized Alerts -->
+            <div id="alerts-section" class="card alert-danger hidden">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Personalized Health Alerts
+                    </h3>
+                </div>
+                <div class="card-content">
+                    <div id="alert-content" class="alert-card"></div>
+                </div>
+            </div>
+
+            <!-- Report Generation Section -->
+            <div id="report-section" class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-file-alt text-primary"></i>
+                        Generate Report
+                    </h3>
+                </div>
+                <div class="card-content text-center">
+                    <div class="flex gap-4 justify-center">
+                        <button id="json-report-btn" class="btn btn-outline">
+                            <i class="fas fa-file-code"></i> Download JSON
+                        </button>
+                        <!-- ADDED PDF DOWNLOAD BUTTON -->
+                        <button id="pdf-report-btn" class="btn btn-outline">
+                            <i class="fas fa-file-pdf"></i> Download PDF
+                        </button>
+                        <button id="email-report-btn" class="btn btn-outline">
+                            <i class="fas fa-envelope"></i> Share via Gmail
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Profile Section -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-user-md text-primary"></i>
+                    Health Profile
+                </h3>
+            </div>
+            <div class="card-content space-y-4">
+                <div class="grid grid-cols-1 gap-4" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+                    <div class="form-group">
+                        <label for="allergies" class="label">Known Allergies</label>
+                        <input type="text" id="allergies" class="input" placeholder="e.g., Penicillin, Aspirin (comma-separated)">
+                    </div>
+                    <div class="form-group">
+                        <label for="medications" class="label">Current Medications</label>
+                        <input type="text" id="medications" class="input" placeholder="e.g., Lisinopril, Metformin (comma-separated)">
+                    </div>
+                </div>
+                <button id="save-profile-btn" class="btn btn-primary">
+                    <i class="fas fa-save"></i>
+                    Save Profile
+                </button>
+            </div>
+        </div>
+
+        <!-- Feedback Section -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-comment-dots text-primary"></i>
+                    Feedback
+                </h3>
+            </div>
+            <div class="card-content">
+                <form id="feedback-form" action="https://formspree.io/f/xeozegoq" method="POST" class="space-y-4">
+                    <div class="grid grid-cols-1 gap-4" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+                        <div class="form-group">
+                            <label for="email" class="label">Email (optional)</label>
+                            <input type="email" id="email" name="email" class="input" placeholder="your@email.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="label">Rating</label>
+                            <div class="star-rating" id="star-rating">
+                                <i class="fas fa-star star active" data-rating="1"></i>
+                                <i class="fas fa-star star active" data-rating="2"></i>
+                                <i class="fas fa-star star active" data-rating="3"></i>
+                                <i class="fas fa-star star active" data-rating="4"></i>
+                                <i class="fas fa-star star active" data-rating="5"></i>
+                            </div>
+                             <input type="hidden" name="rating" id="rating-input" value="5">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="message" class="label">Your feedback</label>
+                        <textarea id="message" name="message" class="textarea" placeholder="Tell us about your experience with MediLens..." rows="4" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i>
+                        Submit Feedback
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- New Scan Button -->
+        <div id="new-scan-section" class="text-center hidden">
+            <button id="new-scan-btn" class="btn btn-destructive" style="padding: 1rem 2rem; font-size: 1.125rem;">
+                <i class="fas fa-sync-alt"></i>
+                New Scan
+            </button>
+        </div>
+        
+        <!-- Disclaimer -->
+        <div class="card" style="background: var(--surface-variant);">
+            <div class="card-content py-4">
+                <p class="text-center text-sm text-muted">
+                    <i class="fas fa-info-circle" style="margin-right: 0.5rem;"></i>
+                    This tool is for informational purposes only. Always consult with a healthcare professional 
+                    for medical advice and before making any changes to your medication regimen.
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <!-- External JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>
